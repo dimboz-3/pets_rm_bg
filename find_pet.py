@@ -49,6 +49,15 @@ def load_var_from_session(key):
 		return  st.session_state[key]
 	else:
 		return None
+#smaller img if needed
+def fit_img(img):
+	width, height = img.size
+	max_w_h = max(width, height)
+	max_len = 960
+	ratio = max_len/max_w_h
+	if max(width, height) > max_len:
+		img = img.resize( (int(width*ratio), int(height*ratio)), Image.BILINEAR)
+	return img
 
 if __name__ == '__main__':
 
@@ -66,26 +75,42 @@ if __name__ == '__main__':
 	#upload file
 	file = st.file_uploader('Upload An Image')
 	if file and (file_old != file):
-		img = Image.open(file)
-		file_old = file
-		NEW_IMG = True
+		try:
+			img = Image.open(file)
+			file_old = file
+			NEW_IMG = True
+		except:
+			 st.write("Uploaded file is not image!!!")
 
 	#load by url	
 	file_url = st.text_input('image url')
 	if file_url and (file_url_old != file_url):
-		response = requests.get(file_url)
-		img = Image.open(BytesIO(response.content))	
-		file_url_old = file_url
+		try:
+			response = requests.get(file_url)
+			img = Image.open(BytesIO(response.content))	
+			file_url_old = file_url
+			NEW_IMG = True
+		except:
+			 st.write("can't load image from that url")
+
 
 	if NEW_IMG:
-		img=np.array(img)
-		att_mask = predict(img,model)
-		st.session_state["att_mask"]=att_mask
 
+		img=fit_img(img)
+		img=np.array(img)
 
 	if img is not None:
 		st.title("Here is the image you've selected")
 		st.image(img)
+
+	if NEW_IMG:
+		##calculate model prediction
+		att_mask = predict(img,model)
+
+		st.session_state["att_mask"]=att_mask
+
+
+	if img is not None:
 
 		st.title("Attention mask")
 		st.image(Image.fromarray(np.uint8(att_mask*255)))
