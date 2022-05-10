@@ -18,7 +18,7 @@ def load_model():
 	model = ResNetUNet(1)
 	
 	path = 'resnet_unet_rm_bg_for_pets.pth'
-	#gdown.download(id = "1-4eVIIfim8vf_kMm9uPMj_JVeOxdbYV2")
+	gdown.download(id = "1-4eVIIfim8vf_kMm9uPMj_JVeOxdbYV2")
 	assert(os.path.exists(path))
 
 	model.load_state_dict(torch.load(path,map_location=torch.device('cpu')))
