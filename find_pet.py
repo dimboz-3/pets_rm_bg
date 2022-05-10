@@ -1,0 +1,87 @@
+
+from PIL import Image
+
+import streamlit as st
+import numpy as np
+
+import torch
+import torchvision
+from torchvision import transforms
+from resnet_unet import ResNetUNet 
+import os
+import requests
+from io import BytesIO
+
+@st.cache()
+def load_model(path: str = '../rm_bg/resnet_unet_rm_bg_for_pets.pth'):
+	model = ResNetUNet(1)
+	
+	assert(os.path.exists(path))
+	model.load_state_dict(torch.load(path,map_location=torch.device('cpu')))
+	model.eval()
+	return model
+
+
+def predict(
+		img: Image.Image,
+		model,
+		) -> Image.Image:
+		
+	trans = transforms.Compose([
+		transforms.ToTensor(),
+		transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # imagenet
+		])
+	#attention mask
+	img_tensor = trans(img)[None,...]
+	with torch.set_grad_enabled(False):
+		att_mask = model.forward(img_tensor)[0].detach()
+	att_mask = torch.sigmoid(att_mask)
+	att_mask = att_mask.numpy().transpose((1, 2, 0))
+	return att_mask[:,:,0]
+
+
+
+
+if __name__ == '__main__':
+
+	model = load_model()
+
+	st.title('Welcome To Project find Pets on photo!')
+
+	img = None
+	#upload file
+	file = st.file_uploader('Upload An Image')
+	if file:
+		img = Image.open(file)
+	#load by url	
+	file_url = st.text_input('image url')
+	if file_url:
+		response = requests.get(file_url)
+		img = Image.open(BytesIO(response.content))
+		
+		
+	if img:
+		st.title("Here is the image you've selected")
+		st.image(img)
+		img=np.array(img)
+		st.title("Attention mask")
+		att_mask = predict(img,model)
+		st.image(Image.fromarray(np.uint8(att_mask*255)))
+		
+		att_threshold = st.slider("attention threshold",
+			min_value=0.0,
+			max_value=1.0,
+			value=0.3,
+			step=0.01)
+		
+		st.title("sharp boundaries")
+		cut_img_sharp = np.where(att_mask[:,:,None]>att_threshold,img,255)
+		st.image(cut_img_sharp)
+		
+		st.title("smooth boundaries")
+		cut_img_smooth = np.where(att_mask[:,:,None]>att_threshold,
+			img*att_mask[:,:,None]+255*(1-att_mask[:,:,None]), 255)
+		st.image(Image.fromarray(np.uint8(cut_img_smooth)))
+		
+		
+		
